@@ -306,26 +306,26 @@ def svg_trend_chart(daily_rows):
 
     # Peak marker
     peak_i = values.index(max_v)
-    peak   = (f'<circle cx="{cx(peak_i):.1f}" cy="{cy(max_v):.1f}" r="4" fill="#2563eb" stroke="#fff" stroke-width="1.5"/>'
+    peak   = (f'<circle cx="{cx(peak_i):.1f}" cy="{cy(max_v):.1f}" r="4" fill="#D4AF37" stroke="#fff" stroke-width="1.5"/>'
               f'<text x="{cx(peak_i):.1f}" y="{cy(max_v)-8:.1f}" text-anchor="middle" '
-              f'font-size="10" fill="#2563eb" font-weight="700">{max_v}</text>')
+              f'font-size="10" fill="#B8941F" font-weight="700">{max_v}</text>')
 
     return f'''<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg"
      style="width:100%;height:auto;display:block;overflow:visible">
   <defs>
     <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#2563eb" stop-opacity="0.12"/>
-      <stop offset="100%" stop-color="#2563eb" stop-opacity="0.01"/>
+      <stop offset="0%"   stop-color="#D4AF37" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#D4AF37" stop-opacity="0.01"/>
     </linearGradient>
   </defs>
   {grid}
   <path d="{area}" fill="url(#ag)"/>
-  <polyline points="{pts}" fill="none" stroke="#2563eb" stroke-width="2"
+  <polyline points="{pts}" fill="none" stroke="#D4AF37" stroke-width="2"
     stroke-linejoin="round" stroke-linecap="round"/>
   {peak}
   {xlbls}
-  <line x1="{pl}" y1="{pt}" x2="{pl}" y2="{pt+ih}" stroke="#e5e7eb" stroke-width="1"/>
-  <line x1="{pl}" y1="{pt+ih}" x2="{W-pr}" y2="{pt+ih}" stroke="#e5e7eb" stroke-width="1"/>
+  <line x1="{pl}" y1="{pt}" x2="{pl}" y2="{pt+ih}" stroke="#E0E0E0" stroke-width="1"/>
+  <line x1="{pl}" y1="{pt+ih}" x2="{W-pr}" y2="{pt+ih}" stroke="#E0E0E0" stroke-width="1"/>
 </svg>'''
 
 
@@ -336,7 +336,7 @@ def svg_trend_chart(daily_rows):
 def device_bars(device_rows):
     d = {r["deviceCategory"]: int(r["sessions"]) for r in device_rows}
     total = sum(d.values()) or 1
-    order = [("desktop", "Desktop", "#2563eb"), ("mobile", "Mobile", "#7c3aed"), ("tablet", "Tablet", "#0891b2")]
+    order = [("desktop", "Desktop", "#D4AF37"), ("mobile", "Mobile", "#B8941F"), ("tablet", "Tablet", "#E6C659")]
     html  = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">'
     for key, label, color in order:
         val = d.get(key, 0)
@@ -363,95 +363,162 @@ MONTHS = ["", "January", "February", "March", "April", "May", "June",
           "July", "August", "September", "October", "November", "December"]
 
 CSS = """
+/* Medi-Edge Marketing brand: Gold #D4AF37 · Charcoal #1A1A1A · White */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap');
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f8fafc;
-  color: #111827;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #FAFAFA;
+  color: #1A1A1A;
   font-size: 14px;
   line-height: 1.6;
 }
-.page { max-width: 900px; margin: 0 auto; padding: 32px 24px 64px; }
+.page { max-width: 920px; margin: 0 auto; padding: 0 0 64px; }
 
+/* ── Header ── */
 .report-header {
-  display: flex; justify-content: space-between; align-items: flex-end;
-  margin-bottom: 28px; padding-bottom: 20px; border-bottom: 2px solid #e5e7eb;
+  background: #1A1A1A;
+  color: #fff;
+  padding: 28px 36px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
 }
-.report-header h1 { font-size: 22px; font-weight: 700; }
-.report-header .sub { font-size: 13px; color: #6b7280; margin-top: 3px; }
-.report-header .meta { font-size: 12px; color: #6b7280; text-align: right; }
-.report-header .meta strong { display: block; font-size: 14px; color: #111827; font-weight: 700; }
+.report-header .brand { display: flex; align-items: center; gap: 14px; }
+.report-header .brand-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 15px;
+  color: #D4AF37;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.report-header .brand-tag {
+  font-size: 11px;
+  color: #999;
+  margin-top: 2px;
+}
+.report-header .divider {
+  width: 1px; height: 36px; background: #333; margin: 0 4px;
+}
+.report-header .client-block h1 {
+  font-size: 20px; font-weight: 700; color: #fff;
+}
+.report-header .client-block .sub {
+  font-size: 12px; color: #999; margin-top: 2px;
+}
+.report-header .date-block {
+  text-align: right; font-size: 12px; color: #999;
+}
+.report-header .date-block strong {
+  display: block; font-size: 13px; color: #D4AF37; font-weight: 600; margin-bottom: 2px;
+}
 
+/* ── Body padding ── */
+.body-wrap { padding: 0 36px; }
+
+/* ── KPI grid ── */
 .kpi-grid {
   display: grid; grid-template-columns: repeat(4, 1fr);
   gap: 12px; margin-bottom: 28px;
 }
 .kpi {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  background: #fff;
+  border: 1px solid #E0E0E0;
+  border-top: 3px solid #D4AF37;
+  border-radius: 8px;
   padding: 16px 14px;
 }
-.kpi .k-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; margin-bottom: 6px; }
-.kpi .k-val   { font-size: 24px; font-weight: 700; line-height: 1; color: #111827; }
-.kpi .k-sub   { font-size: 11px; color: #6b7280; margin-top: 5px; }
-.positive { color: #16a34a; font-weight: 600; }
-.negative { color: #dc2626; font-weight: 600; }
-.neutral  { color: #6b7280; }
+.kpi .k-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #999; margin-bottom: 8px;
+}
+.kpi .k-val { font-size: 26px; font-weight: 700; line-height: 1; color: #1A1A1A; }
+.kpi .k-sub { font-size: 11px; color: #999; margin-top: 6px; }
 
-.section { margin-bottom: 32px; }
+.positive { color: #228B22; font-weight: 600; }
+.negative { color: #CC0000; font-weight: 600; }
+.neutral  { color: #999; }
+
+/* ── Section ── */
+.section { margin-bottom: 30px; }
 .section-label {
-  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
-  color: #6b7280; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .09em; color: #B8941F;
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid #E0E0E0;
 }
 
+/* ── Cards ── */
 .card {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 22px;
+  background: #fff; border: 1px solid #E0E0E0;
+  border-radius: 8px; padding: 20px 22px;
 }
-.card h4 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #6b7280; margin-bottom: 14px; }
+.card h4 {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .07em; color: #999; margin-bottom: 14px;
+}
 
+/* ── Tables ── */
 table { width: 100%; border-collapse: collapse; }
-.table-wrap { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
-thead tr { background: #f9fafb; }
-th {
-  text-align: left; padding: 9px 14px; font-size: 10px; font-weight: 700;
-  color: #6b7280; text-transform: uppercase; letter-spacing: .07em;
-  border-bottom: 1px solid #e5e7eb;
+.table-wrap {
+  background: #fff; border: 1px solid #E0E0E0;
+  border-radius: 8px; overflow: hidden;
 }
-td { padding: 10px 14px; font-size: 13px; color: #374151; border-bottom: 1px solid #f3f4f6; }
+thead tr { background: #F5F5F5; }
+th {
+  text-align: left; padding: 9px 14px;
+  font-size: 10px; font-weight: 700; color: #999;
+  text-transform: uppercase; letter-spacing: .07em;
+  border-bottom: 1px solid #E0E0E0;
+}
+td {
+  padding: 10px 14px; font-size: 13px; color: #2D2D2D;
+  border-bottom: 1px solid #F5F5F5;
+}
 tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #FAFAFA; }
 .tr { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .bar-cell { width: 90px; }
-.bar-bg { background: #f3f4f6; border-radius: 3px; height: 5px; overflow: hidden; }
-.bar-fg { height: 5px; border-radius: 3px; background: #2563eb; }
+.bar-bg { background: #F0F0F0; border-radius: 3px; height: 5px; overflow: hidden; }
+.bar-fg { height: 5px; border-radius: 3px; background: #D4AF37; }
 
+/* ── Channel pills ── */
 .pill {
-  display: inline-block; padding: 2px 8px; border-radius: 99px;
+  display: inline-block; padding: 2px 9px; border-radius: 99px;
   font-size: 11px; font-weight: 600;
 }
-.pill-direct   { background: #eff6ff; color: #1d4ed8; }
-.pill-organic  { background: #f0fdf4; color: #15803d; }
-.pill-email    { background: #fff7ed; color: #c2410c; }
-.pill-referral { background: #fdf4ff; color: #7e22ce; }
-.pill-social   { background: #fef9c3; color: #854d0e; }
-.pill-paid     { background: #fff1f2; color: #be123c; }
-.pill-other    { background: #f3f4f6; color: #374151; }
+.pill-direct   { background: #FBF8EC; color: #7A6010; }
+.pill-organic  { background: #EBF5EB; color: #1A5C1A; }
+.pill-email    { background: #FFF3E0; color: #8B4500; }
+.pill-referral { background: #F3EBF8; color: #5B2080; }
+.pill-social   { background: #FFF8E1; color: #7A5800; }
+.pill-paid     { background: #FFEBEE; color: #8B0020; }
+.pill-other    { background: #F5F5F5; color: #555; }
 
+/* ── Two-column ── */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-.notes-box {
-  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-  padding: 20px 22px; min-height: 100px;
+/* ── Footer ── */
+.report-footer {
+  margin-top: 48px; padding: 16px 36px;
+  background: #1A1A1A;
+  font-size: 11px; color: #666;
+  display: flex; justify-content: space-between; align-items: center;
 }
-.notes-box .notes-hint { font-size: 12px; color: #d1d5db; font-style: italic; }
-
-.footer {
-  margin-top: 48px; padding-top: 14px; border-top: 1px solid #e5e7eb;
-  font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between;
+.report-footer .footer-brand {
+  color: #D4AF37; font-weight: 600; font-size: 12px;
 }
 
+/* ── Print ── */
 @media print {
   body { background: #fff; }
-  .page { padding: 16px; max-width: 100%; }
+  .page { max-width: 100%; }
+  .body-wrap { padding: 0 24px; }
+  .report-header, .report-footer { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .kpi, .card, .table-wrap { break-inside: avoid; }
+  .kpi { border-top: 3px solid #D4AF37 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 """
 
@@ -678,15 +745,6 @@ def generate_html(data, client_name, property_id):
   </div>
 </div>"""
 
-    # --- Notes (blank — account manager fills in manually) ---
-    notes_section = f"""
-<div class="section">
-  <div class="section-label">Account Manager Notes</div>
-  <div class="notes-box">
-    <p class="notes-hint">[ Add notes, context, and action items here before sending to client ]</p>
-  </div>
-</div>"""
-
     _, last_day = monthrange(year, month)
 
     html = f"""<!DOCTYPE html>
@@ -701,27 +759,35 @@ def generate_html(data, client_name, property_id):
 <div class="page">
 
   <div class="report-header">
-    <div>
-      <h1>{client_name}</h1>
-      <div class="sub">Monthly Traffic Report &nbsp;·&nbsp; {mon_str} {year}</div>
+    <div class="brand">
+      <div>
+        <div class="brand-name">Medi-Edge Marketing</div>
+        <div class="brand-tag">mediedgemarketing.com</div>
+      </div>
+      <div class="divider"></div>
+      <div class="client-block">
+        <h1>{client_name}</h1>
+        <div class="sub">Monthly Traffic Report &nbsp;·&nbsp; {mon_str} {year}</div>
+      </div>
     </div>
-    <div class="meta">
-      <strong>Medi-Edge Marketing</strong>
+    <div class="date-block">
+      <strong>{mon_str} {year}</strong>
       Prepared {generated}
     </div>
   </div>
 
-  {kpis}
-  {summary_section}
-  {trend_section}
-  {channel_section}
-  {pages_section}
-  {audience_section}
-  {notes_section}
+  <div class="body-wrap">
+    {kpis}
+    {summary_section}
+    {trend_section}
+    {channel_section}
+    {pages_section}
+    {audience_section}
+  </div>
 
-  <div class="footer">
-    <span>Source: Google Analytics 4 · Property {property_id}</span>
-    <span>{mon_str} 1–{last_day}, {year} &nbsp;vs&nbsp; {prev_str} (prior month)</span>
+  <div class="report-footer">
+    <span class="footer-brand">Medi-Edge Marketing</span>
+    <span>Google Analytics 4 · Property {property_id} &nbsp;·&nbsp; {mon_str} 1–{last_day}, {year} vs {prev_str}</span>
   </div>
 
 </div>
