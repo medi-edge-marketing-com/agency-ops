@@ -1,50 +1,59 @@
 # GA Cross-Reference Skill
 
-**Purpose:** Cross-reference the Google Analytics measurement ID hardcoded in a client site's `layout.tsx` against the GA properties we actually own in our Analytics account — to confirm the right ID is active.
+**Purpose:** Cross-reference Google Analytics measurement IDs across all client sites in our GitHub org against the GA properties we own — without needing local clones. Identifies wrong IDs, missing tracking, and IDs outside our GA access.
 
 ---
 
 ## When to use this
 
+- Auditing all sites at once for GA health
 - Onboarding a new client site where GA was already set up
 - Suspecting a site is tracking to the wrong GA property
-- Cleaning up a site with multiple commented-out GA IDs
+- Cleaning up sites with multiple commented-out GA IDs
 - Verifying GA is pointed at our managed property (not the client's personal account)
 
 ---
 
-## Step 1 — Find the GA ID in the site
+## Step 1 — Pull GA IDs from ALL repos (no local clone needed)
 
-Look in the site's `app/layout.tsx` (Next.js) for the Google Analytics script block:
+Use the GitHub API to read `app/layout.tsx` from every repo in the org:
 
-```tsx
-<Script src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXX" ... />
-<Script id="google-analytics" ...>
-  {`gtag('config', 'G-XXXXXXX');`}
-</Script>
+```bash
+gh repo list medi-edge-marketing-com --limit 100 --json name -q '.[].name' | while read repo; do
+  # Walk the tree to find app/layout.tsx
+  APP_SHA=$(gh api repos/medi-edge-marketing-com/$repo/git/trees/HEAD --jq '.tree[] | select(.path == "app") | .sha' 2>/dev/null)
+  [ -z "$APP_SHA" ] && continue
+  FILE_SHA=$(gh api repos/medi-edge-marketing-com/$repo/git/trees/$APP_SHA --jq '.tree[] | select(.path == "layout.tsx") | .sha' 2>/dev/null)
+  [ -z "$FILE_SHA" ] && continue
+  IDS=$(gh api repos/medi-edge-marketing-com/$repo/git/blobs/$FILE_SHA --jq '.content' 2>/dev/null | base64 -d | grep -oP "G-[A-Z0-9]+" | sort -u | tr '\n' ',')
+  echo "$repo | ${IDS%,}"
+done
 ```
 
-Note the measurement ID(s) — including any commented-out ones.
+For local projects you already have cloned:
+```bash
+for f in ~/projects/*/app/layout.tsx; do
+  site=$(echo $f | sed 's|.*/projects/||' | sed 's|/app/layout.tsx||')
+  ids=$(grep -oP "G-[A-Z0-9]+" $f | tr '\n' ',' | sed 's/,$//')
+  echo "$site | $ids"
+done
+```
 
 ---
 
 ## Step 2 — Get OAuth credentials
 
-SSH into the contact server and read the analytics dashboard env file:
+Read credentials from the contact server:
 
 ```bash
-ssh mem-contact
-cat ~/analytics-dashboard/.env
+ssh mem-contact "cat ~/analytics-dashboard/.env" | grep -E "CLIENT_ID|CLIENT_SECRET|REFRESH_TOKEN"
 ```
 
-You need three values:
-- `GOOGLE_CLIENT_ID`
-- `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_REFRESH_TOKEN`
+You need: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
 
 ---
 
-## Step 3 — Get an access token
+## Step 3 — Get a fresh access token
 
 ```bash
 ACCESS_TOKEN=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
@@ -54,65 +63,131 @@ ACCESS_TOKEN=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
   -d "grant_type=refresh_token" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 ```
 
+Tokens expire — always generate fresh per session.
+
 ---
 
-## Step 4 — List all GA accounts
+## Step 4 — Dump all GA accounts
 
 ```bash
 curl -s "https://analyticsadmin.googleapis.com/v1beta/accounts" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -m json.tool
+  -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for a in data.get('accounts', []):
+    print(a['name'], '|', a.get('displayName',''))
+"
 ```
-
-Look for accounts whose `displayName` matches the client's domain (e.g. `empirechiropractic.com`). Note the account `name` field — format is `accounts/XXXXXXXXX`.
 
 ---
 
-## Step 5 — Get properties under each matching account
+## Step 5 — Get all properties and measurement IDs in one pass
 
 ```bash
-curl -s "https://analyticsadmin.googleapis.com/v1beta/properties?filter=ancestor:accounts/XXXXXXXXX" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -m json.tool
+# Replace with actual account IDs from Step 4
+ACCOUNT_IDS="111111111 222222222 ..."
+
+for ACCT in $ACCOUNT_IDS; do
+  curl -s "https://analyticsadmin.googleapis.com/v1beta/properties?filter=ancestor:accounts/$ACCT" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -c "
+import sys, json
+for p in json.load(sys.stdin).get('properties', []):
+    print(p['name'])
+" 2>/dev/null
+done | while read PROP; do
+  PROP_ID="${PROP#properties/}"
+  curl -s "https://analyticsadmin.googleapis.com/v1beta/properties/$PROP_ID/dataStreams" \
+    -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -c "
+import sys, json
+for s in json.load(sys.stdin).get('dataStreams', []):
+    mid = s.get('webStreamData', {}).get('measurementId', '')
+    if mid: print(f\"$PROP_ID | {s.get('displayName','')} | {mid}\")
+" 2>/dev/null
+done
 ```
 
-Note the property `name` field — format is `properties/XXXXXXXXX`.
+Output: `PROPERTY_ID | Property Display Name | G-XXXXXXX`
 
 ---
 
-## Step 6 — Get measurement IDs from data streams
+## Step 6 — Cross-reference and classify
 
+Compare the measurement IDs from Step 1 against the IDs from Step 5:
+
+| Situation | Classification |
+|---|---|
+| ID in code matches a GA property we own | ✅ Clean |
+| ID in code not found in any of our GA accounts | ❌ Client's own GA — we're blind to their data |
+| Placeholder like `G-XXXXXXXXXX` or `G-FISHSHOP123` | ❌ Fake — no tracking at all |
+| No GA tag in layout.tsx | ❌ Missing — site has zero tracking |
+| Same ID used on 2+ sites | ⚠️ Shared — check if intentional (same client) |
+| GA property name doesn't match site domain | ⚠️ Name mismatch — tracking likely works but confusing |
+
+---
+
+## Step 7 — Fix and deploy
+
+To fix a wrong/missing ID in `layout.tsx`:
+
+```tsx
+{/* Google Analytics (GA4) */}
+<Script
+  src="https://www.googletagmanager.com/gtag/js?id=G-CORRECT_ID"
+  strategy="afterInteractive"
+/>
+<Script id="google-analytics" strategy="afterInteractive">
+  {`
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-CORRECT_ID');
+  `}
+</Script>
+```
+
+Deploy:
 ```bash
-curl -s "https://analyticsadmin.googleapis.com/v1beta/properties/XXXXXXXXX/dataStreams" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" | python3 -m json.tool
+yes | ~/projects/mem-deploy/bin/push --live --server main-1 -m "fix GA measurement ID to G-CORRECT_ID" clientdomain.com
 ```
-
-Look for `webStreamData.measurementId` — this is the `G-XXXXXXX` ID.
 
 ---
 
-## Step 7 — Compare and fix
+## Our GA Org Accounts (as of April 2026)
 
-| ID in layout.tsx | Found in our GA accounts? | Action |
+| Account ID | Display Name | Measurement ID | Site/Project |
+|---|---|---|---|
+| 132223467 | Tierzero | G-68PLD9CE4W | tierzero.com (GA4 property) |
+| 329257397 | Mediedge Marketing | G-R7GWZMF1L5 | mediedgemarketing.com |
+| 362189600 | garagelabusa.com | G-WQJDQ2R0C2 | garagelabusa.com |
+| 365838418 | littlemissmedspa.com | G-K4331MGYNG | littlemissmedspa.com |
+| 366882879 | santafesoul.com | G-W8CD2R4JRN | santafesoul.com |
+| 366937873 | codenverdentist.com | G-FP5CWKB0ES | codenverdentist.com |
+| 368353751 | nursingpnp.com | G-6LYPYV2E0W | nursingpnp.com / aestheticpnp.com |
+| 375192201 | socalskinmedspa.com | G-YFB7XC4XK0 | socalskinaesthetics.com |
+| 376444432 | tierzero.com | G-54N09LP3JR | tierzero.com |
+| 382737202 | ccaesthetics.net | G-R6JFM1N6NH | ccaesthetics.net |
+| 383251866 | empirechiropractic.com | G-MEQD6EX789 | (duplicate — not in use) |
+| 384005829 | empirechiropractic.com | G-JLMC134CEK | empirechiropractic.com ✅ |
+| 385140241 | vipaestheticsla.com | G-J766858ZYF | vipaestheticsla.com |
+| 385365333 | faceitaesthetics.net | G-44P81Y590H | faceitaesthetics.com |
+| 385777249 | owossodental.com | G-WX1WNGGJMS | owossodental.com + owossodentalcenter.com |
+| 386855283 | aestheticnursingces.com | G-8JC567141R | aestheticnursingces.com + course.nursingpnp.com |
+| 387611557 | destinationregenerate.com | G-M8Q8NN7GX3 | destinationregenerate.com |
+| 387662258 | rekindlesexualhealth.com | G-DYPVBF90WE | rekindlesexualhealth.com |
+| 388979440 | ohiofootandanklecare.com | G-CP498340TP | BendsFootandAnkle project |
+| 493862149 (nested) | drrobertgonzalezdc.com | G-KD0P038XQM | drrobertgonzalezdc.com + aestehticnp.com |
+| 490141923 (nested) | origin.health | G-V2RK56N6HJ | origin.health |
+
+*Note: Several IDs appear under account 329257397 (Mediedge Marketing) as nested properties — including SoCal Skin (G-BNDZJVG60R, G-N24RN5HFWN), Christine Ngwazini/Del Mar Injector (G-S90CVQ0Z88, G-TTM1B6NTJB), and Cbooth Innovations (G-BP3VV780DK, G-1ZSP7792WR).*
+
+---
+
+## Known Issues (April 2026)
+
+| Site | ID | Issue |
 |---|---|---|
-| Active ID | Yes | Correct, leave it |
-| Active ID | No | Wrong — swap to the verified one |
-| Commented-out ID | Yes | This is the right one — activate it |
-| Commented-out ID | No | Can remove it |
-
-To fix in `layout.tsx`, update both the `src` on the `<Script>` tag and the `gtag('config', ...)` call to the verified measurement ID, then deploy.
-
----
-
-## Step 8 — Deploy
-
-```bash
-yes | ~/projects/mem-deploy/bin/push --live --server main-1 -m "fix GA measurement ID to G-XXXXXXX" clientdomain.com
-```
-
----
-
-## Notes
-
-- Our GA credentials are managed centrally on `mem-contact` at `~/analytics-dashboard/.env`
-- Access tokens expire — always generate a fresh one per session (Step 3)
-- A client may have multiple accounts if GA was set up more than once (e.g. by a prior agency). Check `createTime` and `industryCategory` to identify the correct/intentional one
-- If a measurement ID doesn't appear in any of our GA accounts, it belongs to a GA account outside our access (likely the client's personal account or a prior agency's account)
+| 7systems-drhaas.com | G-7FD1C9J56J | Not in our GA — client's own account |
+| n2perio.com | G-0NFL7DVFVW | Not in our GA — client's own account |
+| ricksraingutterservices.com | G-PNZ8Z7FVBG | Not in our GA — client's own account |
+| thefishshops.com | G-FISHSHOP123 | Placeholder — no real tracking |
+| tierzero.com | (none) | No GA tag in layout.tsx at all |
