@@ -116,12 +116,14 @@ Compare the measurement IDs from Step 1 against the IDs from Step 5:
 
 | Situation | Classification |
 |---|---|
-| ID in code matches a GA property we own | ✅ Clean |
-| ID in code not found in any of our GA accounts | ❌ Client's own GA — we're blind to their data |
+| ID in code matches a GA property we own | ✅ Clean — we manage the property |
+| ID in code not found in our API results | ✅ Normal — client owns their GA account, we're added as users. Admin API only returns accounts we *own*, not ones where we have user access. Tracking is correct. |
 | Placeholder like `G-XXXXXXXXXX` or `G-FISHSHOP123` | ❌ Fake — no tracking at all |
 | No GA tag in layout.tsx | ❌ Missing — site has zero tracking |
 | Same ID used on 2+ sites | ⚠️ Shared — check if intentional (same client) |
-| GA property name doesn't match site domain | ⚠️ Name mismatch — tracking likely works but confusing |
+| GA property name doesn't match site domain | ⚠️ Name mismatch — tracking likely works but may be confusing in reports |
+
+**Important:** The GA Admin API only returns properties where *we are the account owner*. Client-owned accounts where we're added as a viewer/editor will not appear in API results — this is expected and does not mean the tracking is wrong.
 
 ---
 
@@ -186,8 +188,7 @@ yes | ~/projects/mem-deploy/bin/push --live --server main-1 -m "fix GA measureme
 
 | Site | ID | Issue |
 |---|---|---|
-| 7systems-drhaas.com | G-7FD1C9J56J | Not in our GA — client's own account |
-| n2perio.com | G-0NFL7DVFVW | Not in our GA — client's own account |
-| ricksraingutterservices.com | G-PNZ8Z7FVBG | Not in our GA — client's own account |
 | thefishshops.com | G-FISHSHOP123 | Placeholder — no real tracking |
-| tierzero.com | (none) | No GA tag in layout.tsx at all |
+
+**Sites tracking to client-owned GA (we're added as users — normal):**
+7systems-drhaas.com (G-7FD1C9J56J), n2perio.com (G-0NFL7DVFVW), ricksraingutterservices.com (G-PNZ8Z7FVBG), tierzero.com
